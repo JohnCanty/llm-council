@@ -79,6 +79,50 @@ npm run dev
 
 Then open http://localhost:5173 in your browser.
 
+## Kubernetes
+
+This repo can run on Kubernetes as two containers:
+
+- `Dockerfile.backend` runs the FastAPI API on port `8001`
+- `Dockerfile.frontend` builds the Vite app and serves it with Nginx on port `80`
+
+The frontend is configured to use `http://localhost:8001` in local development, but the container image builds with a relative API base so it can sit behind an Ingress and proxy `/api/*` to the backend service.
+
+### Build and Push Images
+
+```bash
+docker build -f Dockerfile.backend -t ghcr.io/your-org/llm-council-backend:latest .
+docker build -f Dockerfile.frontend -t ghcr.io/your-org/llm-council-frontend:latest .
+
+docker push ghcr.io/your-org/llm-council-backend:latest
+docker push ghcr.io/your-org/llm-council-frontend:latest
+```
+
+### Deploy to Kubernetes
+
+1. Update the image names in `k8s/llm-council.yaml`.
+1. Update the Ingress host in `k8s/llm-council.yaml`.
+1. Create the namespace and OpenRouter secret:
+
+```bash
+kubectl create namespace llm-council
+kubectl create secret generic llm-council-secrets \
+    --namespace llm-council \
+    --from-literal=OPENROUTER_API_KEY=sk-or-v1-...
+```
+
+1. Apply the manifests:
+
+```bash
+kubectl apply -f k8s/llm-council.yaml
+```
+
+### Notes
+
+- Conversation storage is still local JSON on disk, so the backend deployment should remain at `replicas: 1` unless you replace storage with a shared database or object store.
+- The manifest includes a `PersistentVolumeClaim` so conversation files survive backend pod restarts.
+- The included Ingress assumes the NGINX Ingress Controller.
+
 ## Tech Stack
 
 - **Backend:** FastAPI (Python 3.10+), async httpx, OpenRouter API
